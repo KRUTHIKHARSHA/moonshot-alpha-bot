@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>MoonshotAlpha — Solana Intelligence Terminal</title>
+  <meta name="description" content="Institutional-grade Solana trading terminal with AI-powered rug detection, auto-sniper, and MEV-protected swaps." />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Reset & Variables ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --black:      #050508;
+      --surface:    #0d0d12;
+      --panel:      #13131a;
+      --border:     rgba(255,255,255,0.07);
+      --white:      #f0f0f5;
+      --dim:        rgba(240,240,245,0.45);
+      --accent:     #00d4ff;
+      --accent-dim: rgba(0,212,255,0.12);
+      --accent-glow:rgba(0,212,255,0.35);
+      --warn:       #ff6b35;
+      --green:      #00e5a0;
+      --font-display: 'Syne', sans-serif;
+      --font-mono:    'DM Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--black);
+      color: var(--white);
+      font-family: var(--font-display);
+      overflow-x: hidden;
+      cursor: default;
+    }
+
+    /* ── Noise overlay ───────────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.4;
+    }
+
+    /* ── Grid background ─────────────────────────────────────────────── */
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Radial glow ─────────────────────────────────────────────────── */
+    .glow-orb {
+      position: fixed;
+      top: -20vh;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80vw;
+      height: 80vw;
+      max-width: 900px;
+      max-height: 900px;
+      background: radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 65%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Nav ─────────────────────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 48px;
+      background: rgba(5,5,8,0.7);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--white);
+      text-decoration: none;
+    }
+
+    .nav-logo .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent-glow);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%,100% { transform: scale(1); opacity: 1; }
+      50%      { transform: scale(1.4); opacity: 0.6; }
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--dim);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--white); }
+
+    .nav-cta {
+      background: var(--accent);
+      color: var(--black) !important;
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-weight: 700 !important;
+      letter-spacing: 0.06em;
+      transition: box-shadow 0.2s, transform 0.15s !important;
+    }
+
+    .nav-cta:hover {
+      box-shadow: 0 0 20px var(--accent-glow);
+      transform: translateY(-1px);
+    }
+
+    /* ── Hero ────────────────────────────────────────────────────────── */
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 120px 24px 80px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent-dim);
+      border: 1px solid rgba(0,212,255,0.2);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 32px;
+      opacity: 0;
+      animation: fadeUp 0.6s ease forwards 0.2s;
+    }
+
+    .hero-badge .live-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .hero-title {
+      font-size: clamp(48px, 8vw, 96px);
+      font-weight: 800;
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      margin-bottom: 24px;
+      opacity: 0;
+      animation: fadeUp 0.7s ease forwards 0.35s;
+    }
+
+    .hero-title .accent { color: var(--accent); }
+
+    .hero-title .dim-word {
+      color: rgba(240,240,245,0.25);
+    }
+
+    .hero-sub {
+      max-width: 560px;
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 300;
+      line-height: 1.7;
+      color: var(--dim);
+      margin-bottom: 48px;
+      opacity: 0;
+      animation: fadeUp 0.7s ease forwards 0.5s;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+      opacity: 0;
+      animation: fadeUp 0.7s ease forwards 0.65s;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent);
+      color: var(--black);
+      text-decoration: none;
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 14px 32px;
+      border-radius: 8px;
+      transition: box-shadow 0.2s, transform 0.15s;
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 0 30px var(--accent-glow), 0 8px 24px rgba(0,212,255,0.2);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      color: var(--dim);
+      text-decoration: none;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 0.06em;
+      padding: 14px 24px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .btn-secondary:hover { color: var(--white); border-color: rgba(255,255,255,0.2); }
+
+    /* ── Ticker strip ────────────────────────────────────────────────── */
+    .ticker-wrap {
+      position: relative;
+      z-index: 1;
+      overflow: hidden;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      padding: 12px 0;
+    }
+
+    .ticker-track {
+      display: flex;
+      gap: 0;
+      animation: ticker 30s linear infinite;
+      white-space: nowrap;
+    }
+
+    .ticker-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 40px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--dim);
+      letter-spacing: 0.06em;
+      border-right: 1px solid var(--border);
+    }
+
+    .ticker-item .up   { color: var(--green); }
+    .ticker-item .down { color: var(--warn); }
+
+    @keyframes ticker {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* ── Stats bar ───────────────────────────────────────────────────── */
+    .stats-bar {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      padding: 48px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stat-item {
+      flex: 0 0 auto;
+      text-align: center;
+      padding: 0 48px;
+      border-right: 1px solid var(--border);
+      opacity: 0;
+      animation: fadeUp 0.6s ease forwards;
+    }
+
+    .stat-item:last-child { border-right: none; }
+    .stat-item:nth-child(1) { animation-delay: 0.1s; }
+    .stat-item:nth-child(2) { animation-delay: 0.2s; }
+    .stat-item:nth-child(3) { animation-delay: 0.3s; }
+    .stat-item:nth-child(4) { animation-delay: 0.4s; }
+
+    .stat-value {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--accent);
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    /* ── Section base ────────────────────────────────────────────────── */
+    section {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 100px 24px;
+    }
+
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .section-title {
+      font-size: clamp(32px, 4vw, 52px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 20px;
+    }
+
+    .section-sub {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--dim);
+      line-height: 1.7;
+      max-width: 560px;
+      margin-bottom: 60px;
+    }
+
+    /* ── Features grid ───────────────────────────────────────────────── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .feature-card {
+      background: var(--panel);
+      padding: 40px 36px;
+      transition: background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .feature-card:hover { background: #17171f; }
+    .feature-card:hover::before { opacity: 1; }
+
+    .feature-icon {
+      font-size: 28px;
+      margin-bottom: 20px;
+      display: block;
+      filter: drop-shadow(0 0 12px currentColor);
+    }
+
+    .feature-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+    }
+
+    .feature-desc {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--dim);
+      line-height: 1.7;
+    }
+
+    .feature-tag {
+      display: inline-block;
+      margin-top: 20px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: var(--accent-dim);
+      color: var(--accent);
+    }
+
+    /* ── Architecture diagram ────────────────────────────────────────── */
+    .arch-section {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .arch-section > section { max-width: 1100px; }
+
+    .arch-grid {
+      display: grid;
+      grid-template-columns: 1fr 1px 1fr;
+      gap: 0;
+      align-items: start;
+    }
+
+    .arch-divider {
+      background: var(--border);
+      align-self: stretch;
+    }
+
+    .arch-col { padding: 0 48px 0 0; }
+    .arch-col:last-child { padding: 0 0 0 48px; }
+
+    .arch-tree {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 2;
+      color: var(--dim);
+      white-space: pre;
+    }
+
+    .arch-tree .folder  { color: var(--accent); font-weight: 500; }
+    .arch-tree .file    { color: var(--white); }
+    .arch-tree .comment { color: rgba(240,240,245,0.2); font-size: 11px; }
+
+    /* ── How it works ─────────────────────────────────────────────────── */
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .step {
+      background: var(--panel);
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      align-items: center;
+      gap: 32px;
+      padding: 32px 36px;
+      transition: background 0.2s;
+    }
+
+    .step:hover { background: #17171f; }
+
+    .step-num {
+      font-size: 36px;
+      font-weight: 800;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+      opacity: 0.3;
+    }
+
+    .step-content h3 {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .step-content p {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--dim);
+      line-height: 1.6;
+    }
+
+    /* ── Tech stack ──────────────────────────────────────────────────── */
+    .tech-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tech-pill {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--dim);
+      background: var(--panel);
+      transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .tech-pill:hover {
+      color: var(--accent);
+      border-color: rgba(0,212,255,0.3);
+      box-shadow: 0 0 12px rgba(0,212,255,0.1);
+    }
+
+    /* ── CTA section ─────────────────────────────────────────────────── */
+    .cta-section {
+      text-align: center;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .cta-box {
+      border: 1px solid rgba(0,212,255,0.15);
+      border-radius: 20px;
+      padding: 80px 48px;
+      background: linear-gradient(135deg, rgba(0,212,255,0.04) 0%, transparent 60%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-box::after {
+      content: '';
+      position: absolute;
+      bottom: -60px; right: -60px;
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .cta-title {
+      font-size: clamp(28px, 4vw, 48px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .cta-sub {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--dim);
+      margin-bottom: 40px;
+    }
+
+    /* ── Footer ──────────────────────────────────────────────────────── */
+    footer {
+      position: relative;
+      z-index: 1;
+      border-top: 1px solid var(--border);
+      padding: 32px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer-left {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--dim);
+      letter-spacing: 0.05em;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+
+    .footer-links a {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--dim);
+      text-decoration: none;
+      letter-spacing: 0.05em;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--accent); }
+
+    /* ── Animations ──────────────────────────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Scroll reveal ───────────────────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── Typewriter cursor ───────────────────────────────────────────── */
+    .cursor {
+      display: inline-block;
+      width: 3px;
+      height: 1em;
+      background: var(--accent);
+      vertical-align: text-bottom;
+      animation: blink 0.9s step-end infinite;
+      margin-left: 2px;
+    }
+
+    @keyframes blink {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0; }
+    }
+
+    /* ── Terminal card ───────────────────────────────────────────────── */
+    .terminal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .terminal-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+
+    .terminal-dot.red    { background: #ff5f57; }
+    .terminal-dot.yellow { background: #febc2e; }
+    .terminal-dot.green  { background: #28c840; }
+
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-size: 11px;
+      color: var(--dim);
+      letter-spacing: 0.08em;
+    }
+
+    .terminal-body { padding: 24px; }
+
+    .t-dim    { color: var(--dim); }
+    .t-green  { color: var(--green); }
+    .t-accent { color: var(--accent); }
+    .t-warn   { color: var(--warn); }
+    .t-white  { color: var(--white); }
+
+    /* ── Responsive ──────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      nav { padding: 16px 20px; }
+      .nav-links { display: none; }
+      .stats-bar { flex-wrap: wrap; gap: 32px; }
+      .stat-item { border-right: none; padding: 0 24px; }
+      .arch-grid { grid-template-columns: 1fr; }
+      .arch-divider { display: none; }
+      .arch-col { padding: 0; }
+      .arch-col:last-child { padding: 0; margin-top: 40px; }
+      footer { flex-direction: column; gap: 16px; text-align: center; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="grid-bg"></div>
+  <div class="glow-orb"></div>
+
+  <!-- ── Nav ──────────────────────────────────────────────────────────── -->
+  <nav>
+    <a href="#" class="nav-logo">
+      <span class="dot"></span>
+      MoonshotAlpha
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="https://moonshot-alpha-1.gitbook.io/docs.moonshotalpha.io/" target="_blank">Docs</a></li>
+      <li><a href="https://t.me/MoonshotAlphaBot" class="nav-cta" target="_blank">Launch Bot</a></li>
+    </ul>
+  </nav>
+
+  <!-- ── Hero ─────────────────────────────────────────────────────────── -->
+  <div class="hero">
+    <div class="hero-badge">
+      <span class="live-dot"></span>
+      Live on Solana Mainnet
+    </div>
+
+    <h1 class="hero-title">
+      The <span class="accent">Unfair</span><br />
+      <span class="dim-word">Advantage</span><br />
+      For Solana
+    </h1>
+
+    <p class="hero-sub">
+      Institutional-grade trading terminal with AI-powered rug detection,
+      MEV-protected swaps, and a ghost manager that guards your positions
+      while you sleep.
+    </p>
+
+    <div class="hero-actions">
+      <a href="https://t.me/MoonshotAlphaBot" class="btn-primary" target="_blank">
+        ↗ Open Bot
+      </a>
+      <a href="https://moonshot-alpha-1.gitbook.io/docs.moonshotalpha.io/" class="btn-secondary" target="_blank">
+        Read Docs →
+      </a>
+    </div>
+  </div>
+
+  <!-- ── Ticker ────────────────────────────────────────────────────────── -->
+  <div class="ticker-wrap">
+    <div class="ticker-track" id="ticker">
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+  <!-- ── Stats ─────────────────────────────────────────────────────────── -->
+  <div class="stats-bar">
+    <div class="stat-item">
+      <span class="stat-value" data-count="4200">0</span>
+      <span class="stat-label">Alerts Sent</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" data-count="98">0</span>
+      <span class="stat-label">Rugs Blocked  %</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" data-prefix="$" data-count="2400000">0</span>
+      <span class="stat-label">Volume Protected</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" data-count="1200">0</span>
+      <span class="stat-label">Active Users</span>
+    </div>
+  </div>
+
+  <!-- ── Features ──────────────────────────────────────────────────────── -->
+  <section id="features">
+    <span class="section-label reveal">Core Engines</span>
+    <h2 class="section-title reveal">Everything you need.<br /><span style="color:var(--dim)">Nothing you don't.</span></h2>
+    <p class="section-sub reveal">
+      Four precision-engineered systems working in concert to give you
+      an institutional edge on-chain.
+    </p>
+
+    <div class="features-grid reveal">
+      <div class="feature-card">
+        <span class="feature-icon" style="color:#ff6b35">🔎</span>
+        <h3 class="feature-title">Forensic Scanner</h3>
+        <p class="feature-desc">
+          Deep on-chain analysis on every token before you touch it.
+          Checks mint authority, freeze authority, top-holder concentration,
+          and honeypot patterns via live DEX data. Risk-scored 0–100.
+        </p>
+        <span class="feature-tag">Solana RPC + DexScreener</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon" style="color:#00d4ff">🔫</span>
+        <h3 class="feature-title">Auto-Sniper</h3>
+        <p class="feature-desc">
+          Two modes: <strong style="color:var(--white)">Safe</strong> runs the full forensic pipeline before firing.
+          <strong style="color:var(--white)">Degen</strong> fires fast on any new pair passing a liquidity floor.
+          Configurable buy size, slippage, TP, and SL per session.
+        </p>
+        <span class="feature-tag">Safe &amp; Degen Modes</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon" style="color:#00e5a0">🔄</span>
+        <h3 class="feature-title">Swap Engine</h3>
+        <p class="feature-desc">
+          Best-route quotes from Jupiter Aggregator across all Solana DEXes.
+          Submitted via Jito bundle for MEV protection and priority validator
+          landing. Atomic execution — lands or doesn't.
+        </p>
+        <span class="feature-tag">Jupiter v6 + Jito Bundles</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon" style="color:#c77dff">👻</span>
+        <h3 class="feature-title">Ghost Manager</h3>
+        <p class="feature-desc">
+          Server-side position monitoring that never sleeps. Polls prices every
+          10 seconds and auto-triggers your take-profit or stop-loss sell —
+          protecting capital even when you're offline.
+        </p>
+        <span class="feature-tag">24 / 7 Background Monitor</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon" style="color:#febc2e">⭐</span>
+        <h3 class="feature-title">Wishlist & Alerts</h3>
+        <p class="feature-desc">
+          Watch any Solana or EVM token by contract address. Receive real-time
+          push alerts on major price moves. Browse our historical call record
+          by risk category with live PnL calculations.
+        </p>
+        <span class="feature-tag">Multi-chain: SOL + ETH + BSC + Base</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon" style="color:#ff6b35">📡</span>
+        <h3 class="feature-title">Intelligence Feed</h3>
+        <p class="feature-desc">
+          Curated live feed filtered by momentum, volume, and liquidity thresholds.
+          Our background scanner surfaces high-potential tokens before they trend —
+          backed by a risk-tiered alert system.
+        </p>
+        <span class="feature-tag">High / Medium / Low Risk Tiers</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Terminal demo ──────────────────────────────────────────────────── -->
+  <div class="arch-section">
+    <section>
+      <div class="arch-grid">
+        <div class="arch-col">
+          <span class="section-label reveal">Live Output</span>
+          <h2 class="section-title reveal" style="font-size:clamp(28px,3vw,40px)">
+            What the Rug<br />Interceptor sees
+          </h2>
+          <p class="section-sub reveal" style="margin-bottom:0">
+            Every token scanned returns a forensic report with
+            a 0–100 risk score and categorised findings before
+            the sniper fires.
+          </p>
+        </div>
+
+        <div class="arch-divider"></div>
+
+        <div class="arch-col reveal" style="padding:0 0 0 48px">
+          <div class="terminal">
+            <div class="terminal-bar">
+              <div class="terminal-dot red"></div>
+              <div class="terminal-dot yellow"></div>
+              <div class="terminal-dot green"></div>
+              <span class="terminal-title">rug_interceptor.py — scan output</span>
+            </div>
+            <div class="terminal-body">
+              <div><span class="t-dim">$</span> <span class="t-accent">await</span> <span class="t-white">run_rug_check</span><span class="t-dim">(ca, chain="solana")</span></div>
+              <div>&nbsp;</div>
+              <div><span class="t-dim">──────────────────────────────</span></div>
+              <div><span class="t-green">🟡 LOW  |  Score: 22/100</span></div>
+              <div><span class="t-dim">Token:      </span><span class="t-white">MOONCAT ($MCAT)</span></div>
+              <div><span class="t-dim">Liquidity:  </span><span class="t-white">$42,800</span></div>
+              <div><span class="t-dim">Buys/Sells: </span><span class="t-white">184 / 97 (1h)</span></div>
+              <div>&nbsp;</div>
+              <div><span class="t-warn">⚠️  Warnings:</span></div>
+              <div><span class="t-dim">  ⚠️  Top-10 wallets hold 48.3%</span></div>
+              <div>&nbsp;</div>
+              <div><span class="t-green">✅  Passed Checks:</span></div>
+              <div><span class="t-dim">  ✅  Mint authority revoked</span></div>
+              <div><span class="t-dim">  ✅  Freeze authority revoked</span></div>
+              <div><span class="t-dim">  ✅  Buy/sell ratio normal (0.53)</span></div>
+              <div><span class="t-dim">  ✅  Liquidity sufficient ($42,800)</span></div>
+              <div>&nbsp;</div>
+              <div><span class="t-accent">→ SAFE MODE gate: </span><span class="t-green">PASS  ✓</span></div>
+              <div><span class="t-accent">→ Sniper order:   </span><span class="t-green">EXECUTED ⚡</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ── How it works ───────────────────────────────────────────────────── -->
+  <section id="how-it-works">
+    <span class="section-label reveal">Flow</span>
+    <h2 class="section-title reveal">From scan to execution<br /><span style="color:var(--dim)">in under a second.</span></h2>
+    <p class="section-sub reveal">
+      Every snipe runs through a deterministic pipeline — no guesswork,
+      no hidden logic.
+    </p>
+
+    <div class="steps reveal">
+      <div class="step">
+        <span class="step-num">01</span>
+        <div class="step-content">
+          <h3>Token Scanner detects a candidate</h3>
+          <p>Monitors DexScreener for new pairs passing liquidity, volume, and momentum thresholds in real time.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">02</span>
+        <div class="step-content">
+          <h3>Rug Interceptor runs forensic checks</h3>
+          <p>Mint authority, freeze authority, holder concentration, and honeypot analysis run concurrently via Solana RPC + DexScreener.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">03</span>
+        <div class="step-content">
+          <h3>Risk score gates the sniper</h3>
+          <p>Tokens above the configured risk threshold are rejected before any capital is committed. Only clean tokens reach the execution step.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">04</span>
+        <div class="step-content">
+          <h3>Swap Engine fetches best route &amp; submits via Jito</h3>
+          <p>Jupiter Aggregator finds the optimal route. The transaction is bundled and sent to the Jito block-engine for MEV-protected, priority landing.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">05</span>
+        <div class="step-content">
+          <h3>Ghost Manager monitors the open position</h3>
+          <p>Watches price every 10 seconds server-side. Auto-sells at your take-profit or stop-loss — even if the bot is offline.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Architecture ───────────────────────────────────────────────────── -->
+  <div class="arch-section" id="architecture">
+    <section>
+      <span class="section-label reveal">Codebase</span>
+      <h2 class="section-title reveal">Clean separation<br /><span style="color:var(--dim)">of concerns.</span></h2>
+      <p class="section-sub reveal">
+        Every engine lives in its own module. Swap out any layer without
+        touching the others.
+      </p>
+
+      <div class="arch-grid reveal">
+        <div class="arch-col">
+          <div class="arch-tree"><span class="folder">moonshot-alpha-bot/</span>
+│
+├── <span class="folder">core/</span>
+│   ├── <span class="file">main.py</span>           <span class="comment">← entry point &amp; bot setup</span>
+│   ├── <span class="file">bot_handlers.py</span>   <span class="comment">← all Telegram handlers</span>
+│   └── <span class="file">scheduler.py</span>      <span class="comment">← 24h background tasks</span>
+│
+├── <span class="folder">database/</span>
+│   └── <span class="file">firebase.py</span>       <span class="comment">← Firestore abstraction</span>
+│
+├── <span class="folder">scanner/</span>
+│   ├── <span class="file">token_scanner.py</span>  <span class="comment">← DEX feed + filters</span>
+│   └── <span class="file">rug_interceptor.py</span><span class="comment">← on-chain forensics</span>
+│
+└── <span class="folder">trading/</span>
+    ├── <span class="file">sniper.py</span>         <span class="comment">← Safe / Degen modes</span>
+    ├── <span class="file">swap_engine.py</span>    <span class="comment">← Jupiter + Jito</span>
+    └── <span class="file">position_monitor.py</span><span class="comment">← Ghost Manager</span></div>
+        </div>
+
+        <div class="arch-divider"></div>
+
+        <div class="arch-col" style="padding:0 0 0 48px">
+          <span class="section-label" style="margin-bottom:24px;display:block">Tech Stack</span>
+          <div class="tech-grid">
+            <span class="tech-pill">Python 3.11</span>
+            <span class="tech-pill">python-telegram-bot</span>
+            <span class="tech-pill">Solana RPC</span>
+            <span class="tech-pill">Jupiter Aggregator v6</span>
+            <span class="tech-pill">Jito Block Engine</span>
+            <span class="tech-pill">DexScreener API</span>
+            <span class="tech-pill">Firebase Firestore</span>
+            <span class="tech-pill">Supabase</span>
+            <span class="tech-pill">httpx async</span>
+            <span class="tech-pill">Flask</span>
+            <span class="tech-pill">python-dotenv</span>
+            <span class="tech-pill">asyncio</span>
+          </div>
+
+          <div style="margin-top:48px">
+            <span class="section-label" style="margin-bottom:24px;display:block">Chain Support</span>
+            <div class="tech-grid">
+              <span class="tech-pill" style="color:var(--accent);border-color:rgba(0,212,255,0.2)">Solana</span>
+              <span class="tech-pill">Ethereum</span>
+              <span class="tech-pill">BSC</span>
+              <span class="tech-pill">Base</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ── CTA ───────────────────────────────────────────────────────────── -->
+  <div class="cta-section">
+    <section>
+      <div class="cta-box reveal">
+        <h2 class="cta-title">Ready to trade smarter?</h2>
+        <p class="cta-sub">Start your free 3-day trial. No credit card needed.</p>
+        <div class="hero-actions" style="justify-content:center">
+          <a href="https://t.me/MoonshotAlphaBot" class="btn-primary" target="_blank">↗ Launch Bot</a>
+          <a href="https://t.me/MoonshotAlphaCommunity" class="btn-secondary" target="_blank">Join Community →</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ── Footer ────────────────────────────────────────────────────────── -->
+  <footer>
+    <span class="footer-left">© 2025 MoonshotAlpha · Built by Kruthik Harsha B</span>
+    <div class="footer-links">
+      <a href="https://moonshot-alpha-1.gitbook.io/docs.moonshotalpha.io/" target="_blank">Docs</a>
+      <a href="https://t.me/MoonshotAlphaCommunity" target="_blank">Community</a>
+      <a href="https://github.com/KRUTHIKHARSHA" target="_blank">GitHub</a>
+    </div>
+  </footer>
+
+  <!-- ── Scripts ───────────────────────────────────────────────────────── -->
+  <script>
+    /* ── Scroll reveal ─────────────────────────────────────────────── */
+    const observer = new IntersectionObserver(
+      entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+      { threshold: 0.12 }
+    );
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    /* ── Counter animation ─────────────────────────────────────────── */
+    function animateCounter(el) {
+      const target  = parseInt(el.dataset.count);
+      const prefix  = el.dataset.prefix || '';
+      const dur     = 1800;
+      const start   = performance.now();
+
+      function format(n) {
+        if (target >= 1_000_000) return prefix + (n / 1_000_000).toFixed(1) + 'M';
+        if (target >= 1_000)     return prefix + Math.round(n / 1_000) + 'K';
+        return prefix + Math.round(n);
+      }
+
+      function step(now) {
+        const pct  = Math.min((now - start) / dur, 1);
+        const ease = 1 - Math.pow(1 - pct, 3);
+        el.textContent = format(ease * target);
+        if (pct < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    const counterObserver = new IntersectionObserver(
+      entries => entries.forEach(e => {
+        if (e.isIntersecting) { animateCounter(e.target); counterObserver.unobserve(e.target); }
+      }),
+      { threshold: 0.5 }
+    );
+    document.querySelectorAll('[data-count]').forEach(el => counterObserver.observe(el));
+
+    /* ── Ticker ────────────────────────────────────────────────────── */
+    const tickers = [
+      { sym: 'SOL/USDC',  price: '148.32', chg: '+2.4%',  up: true  },
+      { sym: 'BONK/SOL',  price: '0.0000142', chg: '+8.1%', up: true },
+      { sym: 'JUP/USDC',  price: '0.612',  chg: '-1.2%', up: false },
+      { sym: 'WIF/USDC',  price: '1.84',   chg: '+5.3%', up: true  },
+      { sym: 'POPCAT/SOL',price: '0.0048', chg: '+12.7%',up: true  },
+      { sym: 'MYRO/USDC', price: '0.0231', chg: '-0.8%', up: false },
+      { sym: 'BOME/SOL',  price: '0.0071', chg: '+3.2%', up: true  },
+      { sym: 'SLERF/USDC',price: '0.184',  chg: '-2.1%', up: false },
+    ];
+
+    function buildTicker() {
+      const doubled = [...tickers, ...tickers];
+      return doubled.map(t =>
+        `<span class="ticker-item">
+          <span style="color:var(--white)">${t.sym}</span>
+          <span>$${t.price}</span>
+          <span class="${t.up ? 'up' : 'down'}">${t.chg}</span>
+        </span>`
+      ).join('');
+    }
+
+    document.getElementById('ticker').innerHTML = buildTicker();
+  </script>
+</body>
+</html>
