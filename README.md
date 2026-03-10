@@ -2,7 +2,7 @@
 
 <img src="static/moonshot-pff.png" alt="Moonshot Alpha" width="120"/>
 
-# 🚀 Moonshot Alpha Bot
+#  Moonshot Alpha Bot
 
 **Institutional-grade Solana trading terminal — built for the trenches.**
 
