@@ -1,0 +1,45 @@
+# =============================================================================
+#  MoonshotAlpha Bot — Python Dependencies
+# =============================================================================
+#  Install:  pip install -r requirements.txt
+#  Python:   3.11+  (3.10 minimum)
+# =============================================================================
+
+
+# ── Telegram Bot Framework ────────────────────────────────────────────────────
+#  Full async support, inline keyboards, payments, WebApp integration
+python-telegram-bot==21.3
+
+
+# ── Firebase / Firestore ──────────────────────────────────────────────────────
+#  User subscriptions, alert history, wishlist storage
+firebase-admin==6.5.0
+
+
+# ── Supabase ──────────────────────────────────────────────────────────────────
+#  Wallet data, sniper hit logs, user analytics
+supabase==2.4.2
+
+
+# ── Async HTTP client ─────────────────────────────────────────────────────────
+#  All external API calls: DexScreener, Jupiter, Jito, Solana RPC
+#  Chosen over requests for native asyncio support and connection pooling
+httpx==0.27.0
+
+
+# ── Web server (health-check endpoint) ───────────────────────────────────────
+#  Lightweight server so hosting platforms (Render, Railway) detect liveness
+flask==3.0.3
+
+
+# ── Environment variable management ──────────────────────────────────────────
+#  Loads .env file into os.environ at startup
+python-dotenv==1.0.1
+
+
+# ── ML / Trend scoring (optional) ────────────────────────────────────────────
+#  Used by the background token scorer to load the trend_model_v5 weights.
+#  Remove if not using ML-based signal ranking.
+scikit-learn==1.5.1
+joblib==1.4.2
+numpy==1.26.4
